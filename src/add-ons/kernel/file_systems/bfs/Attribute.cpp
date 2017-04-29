@@ -1,9 +1,10 @@
 /*
- * Copyright 2004-2008, Axel Dörfler, axeld@pinc-software.de.
+ * Copyright 2004-2017, Axel Dörfler, axeld@pinc-software.de.
  * This file may be used under the terms of the MIT License.
  */
 
-//!	connection between pure inode and kernel_interface attributes
+
+//!	Connection between pure inode and kernel_interface attributes.
 
 
 #include "Attribute.h"
@@ -83,6 +84,9 @@ Attribute::Get(const char* name)
 	// try to find it in the small data region
 	if (recursive_lock_lock(&fInode->SmallDataLock()) == B_OK) {
 		fNodeGetter.SetToNode(fInode);
+		if (fNodeGetter.Node() == NULL)
+			return B_IO_ERROR;
+
 		fSmall = fInode->FindSmallData(fNodeGetter.Node(), (const char*)name);
 		if (fSmall != NULL)
 			return B_OK;
@@ -117,8 +121,12 @@ Attribute::Create(const char* name, type_code type, int openMode,
 	attr_cookie** _cookie)
 {
 	status_t status = CheckAccess(name, openMode);
-	if (status < B_OK)
+	if (status != B_OK)
 		return status;
+
+	bool exists = Get(name) == B_OK;
+	if (exists && (openMode & O_EXCL) != 0)
+		return B_FILE_EXISTS;
 
 	attr_cookie* cookie = new(std::nothrow) attr_cookie;
 	if (cookie == NULL)
@@ -132,11 +140,9 @@ Attribute::Create(const char* name, type_code type, int openMode,
 	cookie->open_mode = openMode;
 	cookie->create = true;
 
-	if (Get(name) == B_OK) {
-		// attribute already exists
-		if ((openMode & O_TRUNC) != 0)
-			_Truncate();
-	}
+	if (exists && (openMode & O_TRUNC) != 0)
+		_Truncate();
+
 	*_cookie = cookie;
 	return B_OK;
 }

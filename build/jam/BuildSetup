@@ -599,6 +599,11 @@ if $(HOST_PLATFORM) = darwin {
 	# and the libs are located in /opt/local/.
 	HOST_HDRS += /opt/local/include ;
 	HOST_LINKFLAGS += -L/opt/local/lib ;
+
+	# Mac OS X users may be using homebrew libraries, in which case the headers
+	# and the libs are locted in the /usr/local/.
+	HOST_HDRS += /usr/local/include ;
+	HOST_LINKFLAGS += -L/usr/local/lib ;
 }
 
 HOST_BE_API_HEADERS =
@@ -633,6 +638,14 @@ if $(TARGET_PLATFORM) != haiku {
 		Exit ERROR: The host platform is not compatible with target platform
 			$(TARGET_PLATFORM). ;
 	}
+}
+
+
+# Haiku architecture is undefined on host-only builds
+# set here to host arch to prevent recusive loops.
+if $(HAIKU_HOST_BUILD_ONLY) = 1 {
+	HAIKU_ARCH = $(HOST_ARCH) ;
+	HAIKU_KERNEL_ARCH = $(HOST_ARCH) ;
 }
 
 # Set TARGET_* variables either from HAIKU_* or HOST_* depending on the

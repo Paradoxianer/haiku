@@ -531,12 +531,13 @@ my_device_added(usb_device newDevice, void **cookie)
 
 	mutex_init(&device->lock, DRIVER_NAME " device lock");
 
-	device->notify = create_sem(0, DRIVER_NAME " callback notify");
-	if (device->notify < B_OK) {
+	sem_id callbackSem = create_sem(0, DRIVER_NAME " callback notify");
+	if (callbackSem < B_OK) {
 		mutex_destroy(&device->lock);
 		free(device);
-		return device->notify;
+		return callbackSem;
 	}
+	device->notify = callbackSem;
 
 	mutex_lock(&gDeviceListLock);
 	device->link = gDeviceList;

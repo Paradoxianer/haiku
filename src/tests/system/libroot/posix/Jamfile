@@ -37,6 +37,7 @@ SimpleTest tst-mktime : tst-mktime.c ;
 SimpleTest <test>truncate : truncate.cpp ;
 SimpleTest init_rld_after_fork_test : init_rld_after_fork_test.cpp ;
 SimpleTest user_thread_fork_test : user_thread_fork_test.cpp ;
+SimpleTest pthread_barrier_test : pthread_barrier_test.cpp ;
 
 # XSI tests
 SimpleTest xsi_msg_queue_test1 : xsi_msg_queue_test1.cpp ;
@@ -72,6 +73,13 @@ SimpleTest test_wcfuncs : test_wcfuncs.c ;
 SimpleTest test_wctype : test_wctype.c ;
 SimpleTest wcs_test : wcs_test.cpp ;
 
+UnitTestLib librootposixtest.so :
+	LibRootPosix.cpp
+
+	CryptTest.cpp
+
+	: be [ TargetLibstdc++ ] [ TargetLibsupc++ ]
+;
 
 SubInclude HAIKU_TOP src tests system libroot posix math ;
 SubInclude HAIKU_TOP src tests system libroot posix string ;

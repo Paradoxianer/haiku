@@ -1136,7 +1136,7 @@ AboutView::_CreateCreditsView()
 	_AddPackageCredit(PackageCredit("AntiGrain Geometry")
 		.SetCopyright(B_TRANSLATE(COPYRIGHT_STRING "2002-2006 Maxim "
 			"Shemanarev (McSeem)."))
-		.SetLicenses("Anti-Grain Geometry", kBSDThreeClause, "GPC", NULL)
+		.SetLicenses("Anti-Grain Geometry", kBSDThreeClause, NULL)
 		.SetURL("http://www.antigrain.com"));
 
 	// PDFLib copyrights
@@ -1191,18 +1191,13 @@ AboutView::_CreateCreditsView()
 		.SetLicenses("OpenGroup", "DEC", NULL));
 			// TODO: URL
 
-	// VL-Gothic font
-	_AddPackageCredit(PackageCredit("VL-Gothic font")
-		.SetCopyrights(B_TRANSLATE(COPYRIGHT_STRING "1990-2003 Wada Laboratory,"
-			" the University of Tokyo."), COPYRIGHT_STRING
-			"2003-2004 Electronic Font Open Laboratory (/efont/).",
-			COPYRIGHT_STRING "2003-2012 M+ FONTS PROJECT.",
-			COPYRIGHT_STRING "2006-2012 Daisuke SUZUKI.",
-			COPYRIGHT_STRING "2006-2012 Project Vine.",
-			B_TRANSLATE("MIT license. All rights reserved."),
+	// Noto fonts copyright
+	_AddPackageCredit(PackageCredit("Noto fonts")
+		.SetCopyrights(B_TRANSLATE(COPYRIGHT_STRING
+			"2012-2016 Google Internationalization team."),
 			NULL)
-		.SetLicense(kBSDThreeClause)
-		.SetURL("http://vlgothic.dicey.org/"));
+		.SetLicense("SIL Open Font Licence v1.1")
+		.SetURL("http://www.google.com/get/noto/"));
 
 	// expat copyrights
 	_AddPackageCredit(PackageCredit("expat")
@@ -1416,6 +1411,15 @@ AboutView::_CreateCreditsView()
 		.SetCopyright(B_TRANSLATE(COPYRIGHT_STRING "2006-2012 Kentaro Fukuchi"))
 		.SetLicense(kLGPLv21)
 		.SetURL("http://fukuchi.org/works/qrencode/"));
+
+	_AddCopyrightsFromAttribute();
+	_AddPackageCreditEntries();
+
+	// scrypt
+	_AddPackageCredit(PackageCredit("scrypt")
+		.SetCopyright(B_TRANSLATE(COPYRIGHT_STRING "2009 Colin Percival"))
+		.SetLicense(kBSDTwoClause)
+		.SetURL("https://tarsnap.com/scrypt.html"));
 
 	_AddCopyrightsFromAttribute();
 	_AddPackageCreditEntries();

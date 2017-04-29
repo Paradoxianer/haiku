@@ -1,5 +1,5 @@
 /*
- * Copyright 2001-2014, Axel Dörfler, axeld@pinc-software.de.
+ * Copyright 2001-2017, Axel Dörfler, axeld@pinc-software.de.
  * This file may be used under the terms of the MIT License.
  */
 
@@ -143,7 +143,7 @@ public:
 							InodeAllocator(Transaction& transaction);
 							~InodeAllocator();
 
-			status_t		New(block_run* parentRun, mode_t mode,
+			status_t		New(block_run* parentRun, mode_t mode, uint32 flags,
 								block_run& run, fs_vnode_ops* vnodeOps,
 								Inode** _inode);
 			status_t		CreateTree();
@@ -191,8 +191,8 @@ InodeAllocator::~InodeAllocator()
 
 
 status_t
-InodeAllocator::New(block_run* parentRun, mode_t mode, block_run& run,
-	fs_vnode_ops* vnodeOps, Inode** _inode)
+InodeAllocator::New(block_run* parentRun, mode_t mode, uint32 publishFlags,
+	block_run& run, fs_vnode_ops* vnodeOps, Inode** _inode)
 {
 	Volume* volume = fTransaction->GetVolume();
 
@@ -211,7 +211,8 @@ InodeAllocator::New(block_run* parentRun, mode_t mode, block_run& run,
 	if (fInode == NULL)
 		RETURN_ERROR(B_NO_MEMORY);
 
-	if (!volume->IsInitializing()) {
+	if (!volume->IsInitializing()
+		&& (publishFlags & BFS_DO_NOT_PUBLISH_VNODE) == 0) {
 		status = new_vnode(volume->FSVolume(), fInode->ID(), fInode,
 			vnodeOps != NULL ? vnodeOps : &gBFSVnodeOps);
 		if (status < B_OK) {
@@ -272,7 +273,8 @@ InodeAllocator::Keep(fs_vnode_ops* vnodeOps, uint32 publishFlags)
 
 	// Symbolic links are not published -- the caller needs to do this once
 	// the contents have been written.
-	if (!fInode->IsSymLink() && volume->ID() >= 0) {
+	if (!fInode->IsSymLink() && !volume->IsInitializing()
+		&& (publishFlags & BFS_DO_NOT_PUBLISH_VNODE) == 0) {
 		status = publish_vnode(volume->FSVolume(), fInode->ID(), fInode,
 			vnodeOps != NULL ? vnodeOps : &gBFSVnodeOps, fInode->Mode(),
 			publishFlags);
@@ -346,10 +348,13 @@ Inode::Inode(Volume* volume, ino_t id)
 {
 	PRINT(("Inode::Inode(volume = %p, id = %Ld) @ %p\n", volume, id, this));
 
-	UpdateNodeFromDisk();
-
 	rw_lock_init(&fLock, "bfs inode");
 	recursive_lock_init(&fSmallDataLock, "bfs inode small data");
+
+	if (UpdateNodeFromDisk() != B_OK) {
+		// TODO: the error code gets eaten
+		return;
+	}
 
 	// these two will help to maintain the indices
 	fOldSize = Size();
@@ -381,6 +386,11 @@ Inode::Inode(Volume* volume, Transaction& transaction, ino_t id, mode_t mode,
 	recursive_lock_init(&fSmallDataLock, "bfs inode small data");
 
 	NodeGetter node(volume, transaction, this, true);
+	if (node.Node() == NULL) {
+		FATAL(("Could not read inode block %" B_PRId64 "!\n", BlockNumber()));
+		return;
+	}
+
 	memset(&fNode, 0, sizeof(bfs_inode));
 
 	// Initialize the bfs_inode structure -- it's not written back to disk
@@ -490,12 +500,19 @@ Inode::WriteBack(Transaction& transaction)
 }
 
 
-void
+status_t
 Inode::UpdateNodeFromDisk()
 {
 	NodeGetter node(fVolume, this);
+	if (node.Node() == NULL) {
+		FATAL(("Failed to read block %" B_PRId64 " from disk!\n",
+			BlockNumber()));
+		return B_IO_ERROR;
+	}
+
 	memcpy(&fNode, node.Node(), sizeof(bfs_inode));
 	fNode.flags &= HOST_ENDIAN_TO_BFS_INT32(INODE_PERMANENT_FLAGS);
+	return B_OK;
 }
 
 
@@ -916,6 +933,9 @@ status_t
 Inode::GetName(char* buffer, size_t size) const
 {
 	NodeGetter node(fVolume, this);
+	if (node.Node() == NULL)
+		return B_IO_ERROR;
+
 	RecursiveLocker locker(fSmallDataLock);
 
 	const char* name = Name(node.Node());
@@ -940,6 +960,9 @@ Inode::SetName(Transaction& transaction, const char* name)
 		return B_BAD_VALUE;
 
 	NodeGetter node(fVolume, transaction, this);
+	if (node.Node() == NULL)
+		return B_IO_ERROR;
+
 	const char nameTag[2] = {FILE_NAME_NAME, 0};
 
 	return _AddSmallData(transaction, node, nameTag, FILE_NAME_TYPE, 0,
@@ -963,8 +986,8 @@ Inode::_RemoveAttribute(Transaction& transaction, const char* name,
 		Inode* attribute;
 		if ((hasIndex || fVolume->CheckForLiveQuery(name))
 			&& GetAttribute(name, &attribute) == B_OK) {
-			uint8 data[BPLUSTREE_MAX_KEY_LENGTH];
-			size_t length = BPLUSTREE_MAX_KEY_LENGTH;
+			uint8 data[MAX_INDEX_KEY_LENGTH];
+			size_t length = MAX_INDEX_KEY_LENGTH;
 			if (attribute->ReadAt(0, data, &length) == B_OK) {
 				index->Update(transaction, name, attribute->Type(), data,
 					length, NULL, 0, this);
@@ -1013,6 +1036,9 @@ Inode::ReadAttribute(const char* name, int32 type, off_t pos, uint8* buffer,
 	// search in the small_data section (which has to be locked first)
 	{
 		NodeGetter node(fVolume, this);
+		if (node.Node() == NULL)
+			return B_IO_ERROR;
+
 		RecursiveLocker locker(fSmallDataLock);
 
 		small_data* smallData = FindSmallData(node.Node(), name);
@@ -1056,7 +1082,7 @@ Inode::WriteAttribute(Transaction& transaction, const char* name, int32 type,
 		return B_BAD_VALUE;
 
 	// needed to maintain the index
-	uint8 oldBuffer[BPLUSTREE_MAX_KEY_LENGTH];
+	uint8 oldBuffer[MAX_INDEX_KEY_LENGTH];
 	uint8* oldData = NULL;
 	size_t oldLength = 0;
 	bool created = false;
@@ -1065,7 +1091,7 @@ Inode::WriteAttribute(Transaction& transaction, const char* name, int32 type,
 	// If they get changed during the write (hey, user programs), we may mess
 	// up our index trees!
 	// TODO: for attribute files, we need to log the first
-	// BPLUSTREE_MAX_KEY_LENGTH bytes of the data stream, or the same as above
+	// MAX_INDEX_KEY_LENGTH bytes of the data stream, or the same as above
 	// might happen.
 
 	Index index(fVolume);
@@ -1079,14 +1105,17 @@ Inode::WriteAttribute(Transaction& transaction, const char* name, int32 type,
 
 		// save the old attribute data
 		NodeGetter node(fVolume, transaction, this);
+		if (node.Node() == NULL)
+			return B_IO_ERROR;
+
 		recursive_lock_lock(&fSmallDataLock);
 
 		small_data* smallData = FindSmallData(node.Node(), name);
 		if (smallData != NULL) {
 			oldLength = smallData->DataSize();
 			if (oldLength > 0) {
-				if (oldLength > BPLUSTREE_MAX_KEY_LENGTH)
-					oldLength = BPLUSTREE_MAX_KEY_LENGTH;
+				if (oldLength > MAX_INDEX_KEY_LENGTH)
+					oldLength = MAX_INDEX_KEY_LENGTH;
 				memcpy(oldData = oldBuffer, smallData->Data(), oldLength);
 			}
 		} else
@@ -1132,7 +1161,7 @@ Inode::WriteAttribute(Transaction& transaction, const char* name, int32 type,
 				bigtime_t oldModified = attribute->LastModified();
 				writeLocker.Unlock();
 
-				oldLength = BPLUSTREE_MAX_KEY_LENGTH;
+				oldLength = MAX_INDEX_KEY_LENGTH;
 				if (attribute->ReadAt(0, oldBuffer, &oldLength) == B_OK)
 					oldData = oldBuffer;
 
@@ -1148,6 +1177,9 @@ Inode::WriteAttribute(Transaction& transaction, const char* name, int32 type,
 
 		// check if the data fits into the small_data section again
 		NodeGetter node(fVolume, transaction, this);
+		if (node.Node() == NULL)
+			return B_IO_ERROR;
+
 		status = _AddSmallData(transaction, node, name, type, pos, buffer,
 			*_length);
 
@@ -1183,10 +1215,10 @@ Inode::WriteAttribute(Transaction& transaction, const char* name, int32 type,
 	// TODO: find a better way than this "pos" thing (the begin of the old key
 	//	must be copied to the start of the new one for a comparison)
 	if (status == B_OK && pos == 0) {
-		// index only the first BPLUSTREE_MAX_KEY_LENGTH bytes
+		// Index only the first MAX_INDEX_KEY_LENGTH bytes
 		uint16 length = *_length;
-		if (length > BPLUSTREE_MAX_KEY_LENGTH)
-			length = BPLUSTREE_MAX_KEY_LENGTH;
+		if (length > MAX_INDEX_KEY_LENGTH)
+			length = MAX_INDEX_KEY_LENGTH;
 
 		// Update index. Note, Index::Update() may be called even if
 		// initializing the index failed - it will just update the live
@@ -1214,6 +1246,8 @@ Inode::RemoveAttribute(Transaction& transaction, const char* name)
 	Index index(fVolume);
 	bool hasIndex = index.SetTo(name) == B_OK;
 	NodeGetter node(fVolume, this);
+	if (node.Node() == NULL)
+		return B_IO_ERROR;
 
 	// update index for attributes in the small_data section
 	{
@@ -1222,8 +1256,8 @@ Inode::RemoveAttribute(Transaction& transaction, const char* name)
 		small_data* smallData = FindSmallData(node.Node(), name);
 		if (smallData != NULL) {
 			uint32 length = smallData->DataSize();
-			if (length > BPLUSTREE_MAX_KEY_LENGTH)
-				length = BPLUSTREE_MAX_KEY_LENGTH;
+			if (length > MAX_INDEX_KEY_LENGTH)
+				length = MAX_INDEX_KEY_LENGTH;
 			index.Update(transaction, name, smallData->Type(),
 				smallData->Data(), length, NULL, 0, this);
 		}
@@ -1327,20 +1361,19 @@ Inode::IsEmpty()
 {
 	TreeIterator iterator(fTree);
 
-	// index and attribute directories are really empty when they are
-	// empty - directories for standard files always contain ".", and
-	// "..", so we need to ignore those two
-
 	uint32 count = 0;
-	char name[BPLUSTREE_MAX_KEY_LENGTH];
+	char name[MAX_INDEX_KEY_LENGTH + 1];
 	uint16 length;
 	ino_t id;
-	while (iterator.GetNextEntry(name, &length, B_FILE_NAME_LENGTH,
+	while (iterator.GetNextEntry(name, &length, MAX_INDEX_KEY_LENGTH + 1,
 			&id) == B_OK) {
-		if (Mode() & (S_ATTR_DIR | S_INDEX_DIR))
+		if ((Mode() & (S_ATTR_DIR | S_INDEX_DIR)) != 0)
 			return false;
 
-		if (++count > 2 || (strcmp(".", name) && strcmp("..", name)))
+		// Unlike index and attribute directories, directories
+		// for standard files always contain ".", and "..", so
+		// we need to ignore those two
+		if (++count > 2 || (strcmp(".", name) != 0 && strcmp("..", name) != 0))
 			return false;
 	}
 	return true;
@@ -1431,6 +1464,8 @@ Inode::FindBlockRun(off_t pos, block_run& run, off_t& offset)
 			int32 indirectSize;
 			get_double_indirect_sizes(data->double_indirect.Length(),
 				fVolume->BlockSize(), runsPerBlock, directSize, indirectSize);
+			if (directSize <= 0 || indirectSize <= 0)
+				RETURN_ERROR(B_BAD_DATA);
 
 			off_t start = pos - data->MaxIndirectRange();
 			int32 index = start / indirectSize;
@@ -1920,6 +1955,8 @@ Inode::_GrowStream(Transaction& transaction, off_t size)
 			int32 indirectSize;
 			get_double_indirect_sizes(data->double_indirect.Length(),
 				fVolume->BlockSize(), runsPerBlock, directSize, indirectSize);
+			if (directSize <= 0 || indirectSize <= 0)
+				return B_BAD_DATA;
 
 			off_t start = data->MaxDoubleIndirectRange()
 				- data->MaxIndirectRange();
@@ -2031,6 +2068,8 @@ Inode::_FreeStaticStreamArray(Transaction& transaction, int32 level,
 		indirectSize = double_indirect_max_direct_size(run.Length(),
 			fVolume->BlockSize());
 	}
+	if (indirectSize <= 0)
+		return B_BAD_DATA;
 
 	off_t start;
 	if (size > offset)
@@ -2425,7 +2464,8 @@ void
 Inode::TransactionDone(bool success)
 {
 	if (!success) {
-		// revert any changes made to the cached bfs_inode
+		// Revert any changes made to the cached bfs_inode
+		// TODO: return code gets eaten
 		UpdateNodeFromDisk();
 	}
 }
@@ -2649,7 +2689,8 @@ Inode::Create(Transaction& transaction, Inode* parent, const char* name,
 	InodeAllocator allocator(transaction);
 	block_run run;
 	Inode* inode;
-	status = allocator.New(&parentRun, mode, run, vnodeOps, &inode);
+	status = allocator.New(&parentRun, mode, publishFlags, run, vnodeOps,
+		&inode);
 	if (status < B_OK)
 		return status;
 
@@ -2816,6 +2857,9 @@ AttributeIterator::GetNext(char* name, size_t* _length, uint32* _type,
 
 	if (fCurrentSmallData >= 0) {
 		NodeGetter nodeGetter(fInode->GetVolume(), fInode);
+		if (nodeGetter.Node() == NULL)
+			return B_IO_ERROR;
+
 		const bfs_inode* node = nodeGetter.Node();
 		const small_data* item = ((bfs_inode*)node)->SmallDataStart();
 

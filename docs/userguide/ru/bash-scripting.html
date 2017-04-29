@@ -12,8 +12,9 @@
  * Translators:
  *		mrNoisy
  *		Michael Smirnov
- *		Diver
+ *		Sergei Reznikov
  *		Humdinger
+ *		Akuji
  *
 -->
 	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
@@ -69,7 +70,8 @@
 <h2>
 <a href="#"><img src="../images/up.png" style="border:none;float:right" alt="index" /></a>
 <a id="bash" name="bash">Bash</a></h2>
-<p>Учитывая, что скрипты во многом зависят от оболочки, которой они интерпретируются, для начала вам следует ознакомиться с BASH, который используется в Haiku. В сети есть достаточно много ресурсов, ведь эта оболочка широко распространена. Хорошим руководством послужит работа Йохана Янссона (Johan Jansson) <a href="http://www.beforever.com/bashtut.htm" class="printurl">Introduction to bash - a tutorial for bash under BeOS</a>.</p>
+<p>Since scripts rely naturally a lot on the shell they are interpreted by, you should first familiarize yourself with the BASH that's used by Haiku. There are many resources online as it's a widely used shell. One nice document is Johan Jansson's <a href="https://web.archive.org/web/20011205095723/http://www.beforever.com/bashtut.htm" class="printurl">Introduction to bash - a tutorial for bash under BeOS</a>.<br />
+The <a href="https://www.gnu.org/software/bash/manual/bash.pdf" class="printurl">Bash Reference Manual (PDF, 720 KiB)</a> is a nice resource to get into the details.</p>
 
 <h2>
 <a href="#"><img src="../images/up.png" style="border:none;float:right" alt="index" /></a>
@@ -78,8 +80,7 @@
 
 <h2>
 <a href="#"><img src="../images/up.png" style="border:none;float:right" alt="index" /></a><a id="user-scripts" name="user-scripts">Скрипты в Haiku</a></h2>
-<p>Haiku used to have scripts for booting and shutting down. Today it uses the <a href="https://dev.haiku-os.org/wiki/LaunchDaemon">launch_daemon</a> instead. However, the user can still augment this process with certain user scripts.
-If they don't exist already, you'll have to create the needed files yourself. Otherwise simply add your commands where in the process you want them to be executed.</p>
+<p>Раньше Haiku использовала скрипты для загрузки и завершения работы. Теперь для этого применяется демон загрузки <a href="https://dev.haiku-os.org/wiki/LaunchDaemon">launch_daemon</a> Тем не менее пользователь все равно может влиять на процесс при помощи скриптов. Если они еще не существуют, вам придется создать их самостоятельно. В ином случае просто добавьте нужные команды туда, где они должны быть выполнены.</p>
 
 <h3>
 <a href="#"><img src="../images/up.png" style="border:none;float:right" alt="index" /></a>

@@ -1,5 +1,5 @@
 /*
- * Copyright 2001-2014, Axel Dörfler, axeld@pinc-software.de.
+ * Copyright 2001-2017, Axel Dörfler, axeld@pinc-software.de.
  * This file may be used under the terms of the MIT License.
  */
 
@@ -1546,6 +1546,11 @@ BlockAllocator::CheckNextNode(check_control* control)
 			&& inode->IsRegularNode()) {
 			RecursiveLocker locker(inode->SmallDataLock());
 			NodeGetter node(fVolume, inode);
+			if (node.Node() == NULL) {
+				fCheckCookie->control.errors |= BFS_COULD_NOT_OPEN;
+				fCheckCookie->control.status = B_IO_ERROR;
+				return B_OK;
+			}
 
 			const char* localName = inode->Name(node.Node());
 			if (localName == NULL || strcmp(localName, name)) {
@@ -2170,8 +2175,8 @@ BlockAllocator::_AddInodeToIndex(Inode* inode)
 			if (inode->InSizeIndex())
 				status = tree->Insert(transaction, inode->Size(), inode->ID());
 		} else {
-			uint8 key[BPLUSTREE_MAX_KEY_LENGTH];
-			size_t keyLength = BPLUSTREE_MAX_KEY_LENGTH;
+			uint8 key[MAX_INDEX_KEY_LENGTH];
+			size_t keyLength = MAX_INDEX_KEY_LENGTH;
 			if (inode->ReadAttribute(index->name, B_ANY_TYPE, 0, key,
 					&keyLength) == B_OK) {
 				status = tree->Insert(transaction, key, keyLength, inode->ID());

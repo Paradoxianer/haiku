@@ -25,11 +25,14 @@ public:
 								~Header();
 
 			status_t			InitCheck() const;
+			bool				IsDirty() const;
 
 			uint64				FirstUsableBlock() const
 									{ return fHeader.FirstUsableBlock(); }
 			uint64				LastUsableBlock() const
 									{ return fHeader.LastUsableBlock(); }
+			const efi_table_header& TableHeader() const
+									{ return fHeader; }
 
 			uint32				EntryCount() const
 									{ return fHeader.EntryCount(); }
@@ -72,6 +75,7 @@ private:
 			efi_table_header	fHeader;
 			efi_table_header	fBackupHeader;
 			uint8*				fEntries;
+			bool				fDirty;
 };
 
 
