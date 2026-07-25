@@ -164,6 +164,41 @@ if [ IsPackageAvailable giflib_devel ] {
 }
 
 
+# CLucene
+if [ IsPackageAvailable clucene_devel ] {
+	ExtractBuildFeatureArchives clucene :
+		file: base clucene
+			runtime: lib
+		file: devel clucene_devel
+			depends: base
+			libraries: $(developLibDir)/libclucene-core.so
+				$(developLibDir)/libclucene-shared.so
+			headers: $(developHeadersDir)
+		;
+
+	EnableBuildFeatures clucene ;
+} else {
+	unavailableBuildFeatures += clucene ;
+}
+
+
+# TagLib
+if [ IsPackageAvailable taglib_devel ] {
+	ExtractBuildFeatureArchives taglib :
+		file: base taglib
+			runtime: lib
+		file: devel taglib_devel
+			depends: base
+			library: $(developLibDir)/libtag.so
+			headers: $(developHeadersDir)/taglib
+		;
+
+	EnableBuildFeatures taglib ;
+} else {
+	unavailableBuildFeatures += taglib ;
+}
+
+
 # GLU (GL Utilities)
 if [ IsPackageAvailable glu_devel ] {
 	ExtractBuildFeatureArchives glu :
