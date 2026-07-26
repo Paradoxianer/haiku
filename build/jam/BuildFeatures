@@ -199,6 +199,27 @@ if [ IsPackageAvailable taglib_devel ] {
 }
 
 
+# libexif
+if [ IsPackageAvailable libexif_devel ] {
+	ExtractBuildFeatureArchives exif :
+		file: base libexif
+			runtime: lib
+		file: devel libexif_devel
+			depends: base
+			library: $(developLibDir)/libexif.so
+			headers: $(developHeadersDir)
+				# libexif's own headers cross-include as
+				# <libexif/exif-byte-order.h> etc., so the include root
+				# needs to be the parent of the libexif/ directory, not
+				# libexif/ itself.
+		;
+
+	EnableBuildFeatures exif ;
+} else {
+	unavailableBuildFeatures += exif ;
+}
+
+
 # GLU (GL Utilities)
 if [ IsPackageAvailable glu_devel ] {
 	ExtractBuildFeatureArchives glu :
