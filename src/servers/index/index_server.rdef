@@ -2,15 +2,15 @@
 resource app_signature "application/x-vnd.Haiku-index_server";
 
 resource app_version {
-	major  = 1,
-	middle = 0,
+	major  = 0,
+	middle = 1,
 	minor  = 0,
 
 	variety = B_APPV_FINAL,
 	internal = 0,
 
 	short_info = "Index Server",
-	long_info  = "Index Server ©2010 Haiku, Inc."
+	long_info  = "Index Server ©2026 Haiku, Inc."
 };
 
 resource app_flags B_EXCLUSIVE_LAUNCH | B_BACKGROUND_APP;

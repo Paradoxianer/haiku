@@ -52,6 +52,7 @@ IndexServerSettings::~IndexServerSettings()
 void
 IndexServerSettings::_SetDefaults()
 {
+    // TODO: establiche some default for whitelisting ;-)
 	BAutolock lock(fLock);
 
 	fMode = kBlacklistMode;
